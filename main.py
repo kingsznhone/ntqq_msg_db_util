@@ -15,6 +15,7 @@ PRAGMA 正确顺序（实测验证，顺序错误会导致解密失败）：
 
 依赖：uv add sqlcipher3
 """
+import os
 import re
 import sys
 import time
@@ -29,7 +30,7 @@ INPUT_DB  = "nt_msg.db"          # 原始输入（含 1024 字节 NTQQ 自定义
 CLEAR_DB  = "nt_msg_clear.db"    # 剥头后的 SQLCipher 文件（中间产物）
 OUTPUT_DB = "nt_msg_plain.db"    # 最终明文 SQLite 输出
 
-DB_KEY = ""     # ← 在此粘贴密钥（支持任意长度 ASCII）
+DB_KEY = os.getenv("NTQQ_DB_KEY") or ""  # 优先读取环境变量；也可直接在引号内填写回退密钥
 # ────────────────────────────────────────────────────────────────────────────
 
 HEADER_SIZE = 1024      # NTQQ 自定义头长度（固定值）

@@ -15,6 +15,7 @@ nt_msg_slim.db 生成工具
 
 依赖：uv add sqlcipher3
 """
+import os
 import re
 import sys
 import time
@@ -28,7 +29,7 @@ INPUT_DB  = "nt_msg.db"          # 含 1024 字节头的原始文件（只用于
 CLEAR_DB  = "nt_msg_clear.db"    # 已剥头的 SQLCipher 源库（只读）
 OUTPUT_DB = "nt_msg_slim.db"     # 输出：无 group_msg_table 数据 + 重新加头
 
-DB_KEY = ""     # ← 在此粘贴密钥
+DB_KEY = os.getenv("NTQQ_DB_KEY") or ""  # 优先读取环境变量；也可在引号内填写回退密钥
 
 SKIP_TABLE = "group_msg_table"   # 该表只建空表，不复制行
 # ─────────────────────────────────────────────────────────────────────────────
