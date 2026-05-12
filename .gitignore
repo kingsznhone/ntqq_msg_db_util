@@ -9,6 +9,5 @@ wheels/
 # Virtual environments
 .venv
 
-# 本地密钥（不提交）
 .env
 *.db
