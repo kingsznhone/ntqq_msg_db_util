@@ -15,7 +15,7 @@ NTQQ（QQ NT 架构）将聊天记录存储在 SQLCipher 4 加密的 SQLite 数�
 | `nt_msg.db` | 原始输入，含 1024 字节 NTQQ 自定义头 |
 | `nt_msg_clear.db` | 剥头后的 SQLCipher 文件（中间产物） |
 | `nt_msg_plain.db` | **最终明文 SQLite**，可直接用任意 SQLite 工具打开 |
-| `nt_msg_slim.db` | 明文结构但重新加了原始头、清空了 `group_msg_table` 的精简版（仍为 SQLCipher 格式） |
+| `nt_msg_slim.db` | 以相同密钥重新加密、清空了 `group_msg_table`、并在头部拼接原始 1024 字节头的精简版（SQLCipher 格式，可直接回传 NTQQ） |
 
 ---
 
