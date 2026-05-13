@@ -180,7 +180,7 @@ message MsgContent {
   int64  expire_ts   = 45505;  // 🔍 文件 CDN 过期 Unix 时间戳
   int32  f45507      = 45507;  // ❓ 负整数（颜色值？-5503042 ≈ 0xFFABCEFE）
   int32  f45509      = 45509;  // ❓ 0 或 1
-  Sub    f45510      = 45510;  // ❓ 空 sub-message
+  string f45510      = 45510;  // 🔍 第二 CDN token（base64url 字符串，与 45503 同格式；旧消息使用 45504，新消息使用此字段）
   int32  f45511      = 45511;  // ❓ 恒为 1
   int32  f45512      = 45512;  // ❓ 恒为 1
   int32  f45513      = 45513;  // ❓ 恒为 1
