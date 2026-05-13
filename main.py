@@ -22,7 +22,10 @@ import time
 import sqlite3
 import pathlib
 
+from dotenv import load_dotenv
 import sqlcipher3.dbapi2 as sc
+
+load_dotenv()
 
 
 # ─── 配置（修改这里）────────────────────────────────────────────────────────

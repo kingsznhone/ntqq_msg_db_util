@@ -21,7 +21,10 @@ import sys
 import time
 import pathlib
 
+from dotenv import load_dotenv
 import sqlcipher3.dbapi2 as sc
+
+load_dotenv()
 
 
 # ─── 配置（与 main.py 保持一致）───────────────────────────────────────────────

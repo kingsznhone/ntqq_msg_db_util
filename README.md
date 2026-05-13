@@ -18,6 +18,7 @@ https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 | `nt_msg_clear.db` | 剥头后的 SQLCipher 文件（中间产物） |
 | `nt_msg_plain.db` | **最终明文 SQLite**，可直接用任意 SQLite 工具打开 |
 | `nt_msg_slim.db` | 以相同密钥重新加密、清空了 `group_msg_table`、并在头部拼接原始 1024 字节头的精简版（SQLCipher 格式，可直接回传 NTQQ） |
+| `nt_msg_export.db` | **结构化导出库**，由 `convert.py` 生成，仅含关键字段，支持全文搜索 |
 
 ---
 
@@ -113,11 +114,70 @@ uv run python slim.py
 
 ---
 
+## 脚本三：`convert.py` — 导出结构化消息数据库
+
+### 背景
+
+`nt_msg_plain.db` 中的消息内容（`c2c_msg_table.40800` 列）以 Protobuf 编码存储，且夹杂大量未知字段。该脚本解析 Protobuf，提取关键字段，输出一个结构清晰、可直接查询的 SQLite 数据库 `nt_msg_export.db`。
+
+### 思路
+
+1. **只读**打开 `nt_msg_plain.db`，按 `40001`（消息 ID）顺序扫描 `c2c_msg_table`。
+2. 用编译好的 `msgdb/msg_pb2.py` 解析每行的 `40800` Protobuf blob。
+3. 按 `40011`（消息类型）分发到对应解析函数，提取文本/图片/文件/通话等结构化内容，序列化为 JSON 写入 `content` 列。
+4. 批量写入（默认 2000 行/事务），写入期间暂停 FTS5 触发器，全部完成后一次性重建 FTS 索引。
+
+### 输出表结构（`messages`）
+
+| 列 | 来源字段 | 说明 |
+|----|---------|------|
+| `id` | `40001` | 消息唯一 ID（主键，与源库对应） |
+| `timestamp` | `40050` | Unix 秒，服务端发送时间 |
+| `direction` | `40013` | 1=发出，0=收到 |
+| `sender_uid` | `40020` | 发送方 NT UID（`u_...`） |
+| `peer_uid` | `40021` | 会话对象 NT UID |
+| `msg_type` | `40011` | 消息外层类型 |
+| `content_type` | `45002` | 内容子类型（首段） |
+| `proto_ver` | `49154` | NT 协议版本标识（`"1"` / `"nt_1"`） |
+| `inner_ts` | `49155` | 消息内层时间戳（Unix 秒） |
+| `text` | `45101` | 所有文本段合并后的纯文本（FTS 全文搜索来源） |
+| `content` | `40800` 解析 | JSON，含 `type` 鉴别字段，结构按消息类型而异 |
+
+`content` JSON 示例：
+
+```json
+{"type": "text",  "text": "你好"}
+{"type": "image", "filename": "xxx.jpg", "width": 1080, "height": 720, "filesize": 204800, "md5_hex": "...", "cdn_url": "..."}
+{"type": "file",  "filename": "report.pdf", "filesize": 1048576, "md5_hex": "...", "ext": ".pdf"}
+{"type": "call",  "call_type": 7, "duration": 61, "desc": "通话时长 00:01"}
+{"type": "mixed", "segments": [...]}
+```
+
+支持的 `type` 值：`text` / `image` / `video` / `file` / `sticker` / `contact` / `reply` / `forward` / `legacy_forward` / `call` / `sys` / `mixed`
+
+### 使用
+
+```bash
+uv run python convert.py                          # 使用默认路径
+uv run python convert.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5000
+uv run python convert.py --debug                  # 显示逐行解析错误详情
+```
+
+### 后果
+
+- 生成 `nt_msg_export.db`：标准 SQLite，无需密钥，可直接用 DB Browser 等工具打开
+- 自动建立时间、会话、消息类型索引及 FTS5 全文搜索虚拟表（`messages_fts`）
+- 实测：131 万行，0 解析错误，约 30 秒完成
+
+---
+
 ## 依赖
 
 ```
 Python 3.10+
+protobuf>=5.26
 sqlcipher3 (uv add sqlcipher3)
 ```
 
-`sqlcipher3` 包内置 SQLCipher 4 动态库，无需额外安装系统级 sqlcipher。
+`sqlcipher3` 包内置 SQLCipher 4 动态库，无需额外安装系统级 sqlcipher。  
+`convert.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。
