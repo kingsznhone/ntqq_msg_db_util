@@ -22,7 +22,7 @@ https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 
 ---
 
-## 脚本一：`main.py` — 解密并导出明文数据库
+## 脚本一：`1.decrypt.py` — 解密并导出明文数据库
 
 ### 思路
 
@@ -45,7 +45,7 @@ PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA512;
 
 ### 配置
 
-编辑 `main.py` 顶部：
+编辑 `1.decrypt.py` 顶部：
 
 ```python
 INPUT_DB  = "nt_msg.db"       # 原始输入
@@ -59,7 +59,7 @@ DB_KEY = "在此粘贴密钥"        # 16 字节 ASCII 密钥
 
 ```bash
 uv add sqlcipher3   # 首次运行前安装依赖
-uv run python main.py
+uv run python 1.decrypt.py
 ```
 
 ### 后果
@@ -70,7 +70,7 @@ uv run python main.py
 
 ---
 
-## 脚本二：`slim.py` — 生成去除 group_msg_table 的精简版
+## 脚本二：`2.slim.py` — 生成去除 group_msg_table 的精简版
 
 ### 背景
 
@@ -90,7 +90,7 @@ uv run python main.py
 
 ### 配置
 
-编辑 `slim.py` 顶部（与 `main.py` 保持一致即可）：
+编辑 `2.slim.py` 顶部（与 `1.decrypt.py` 保持一致即可）：
 
 ```python
 INPUT_DB   = "nt_msg.db"
@@ -103,7 +103,7 @@ SKIP_TABLE = "group_msg_table"  # 只建空表的表名
 ### 使用
 
 ```bash
-uv run python slim.py
+uv run python 2.slim.py
 ```
 
 ### 后果
@@ -114,7 +114,7 @@ uv run python slim.py
 
 ---
 
-## 脚本三：`convert.py` — 导出结构化消息数据库
+## 脚本三：`3.convert.py` — 导出结构化消息数据库
 
 ### 背景
 
@@ -131,11 +131,14 @@ uv run python slim.py
 
 | 列 | 来源字段 | 说明 |
 |----|---------|------|
-| `id` | `40001` | 消息唯一 ID（主键，与源库对应） |
+| `id` | `rowid` | 原始 c2c_msg_table rowid（主键） |
+| `msg_id` | `40001` | 消息唯一 ID（全局单调递增） |
 | `timestamp` | `40050` | Unix 秒，服务端发送时间 |
 | `direction` | `40013` | 1=发出，0=收到 |
 | `sender_uid` | `40020` | 发送方 NT UID（`u_...`） |
+| `sender_qq` | `40033` | 发送者 QQ 号 |
 | `peer_uid` | `40021` | 会话对象 NT UID |
+| `peer_qq` | `40030` | 会话对象 QQ 号 |
 | `msg_type` | `40011` | 消息外层类型 |
 | `content_type` | `45002` | 内容子类型（首段） |
 | `proto_ver` | `49154` | NT 协议版本标识（`"1"` / `"nt_1"`） |
@@ -158,9 +161,9 @@ uv run python slim.py
 ### 使用
 
 ```bash
-uv run python convert.py                          # 使用默认路径
-uv run python convert.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5000
-uv run python convert.py --debug                  # 显示逐行解析错误详情
+uv run python 3.convert.py                          # 使用默认路径
+uv run python 3.convert.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5000
+uv run python 3.convert.py --debug                  # 显示逐行解析错误详情
 ```
 
 ### 后果
