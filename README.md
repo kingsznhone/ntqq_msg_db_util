@@ -9,7 +9,7 @@ NTQQ（QQ NT 架构）将聊天记录存储在 SQLCipher 4 加密的 SQLite 数�
 
 此Repo的所有工作建立在Windows平台上，将个人使用了十八年QQ的完整数据库作为研究对象
 
-密钥为 16 字节 ASCII 字符串，可通过内存调试等方式从 NTQQ 进程中提取。
+密钥为 16 字节 ASCII 字符串，可通过内存调试等方式从 NTQQ 进程中提取。建议使用 PowerShell 脚本提取密钥，2026年5月14日亲测有效
 
 https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 
