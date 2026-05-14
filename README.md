@@ -179,13 +179,38 @@ uv run python 3.convert.py --debug                  # 显示逐行解析错误�
 
 ---
 
-## 依赖
+## 环境配置
 
-```
-Python 3.10+
-protobuf>=5.26
-sqlcipher3 (uv add sqlcipher3)
+### 前置要求
+
+- **Python 3.14**（推荐；`pyproject.toml` 中声明 `requires-python = ">=3.14"`）
+- **[uv](https://docs.astral.sh/uv/)**：现代 Python 包管理器，安装方式：
+  ```powershell
+  # Windows (PowerShell)
+  irm https://astral.sh/uv/install.ps1 | iex
+  ```
+
+### 安装步骤
+
+```powershell
+# 1. 克隆仓库
+git clone https://github.com/kingsznhone/ntqq_msg_db_util.git
+cd ntqq_msg_db_util
+
+# 2. 创建虚拟环境并安装依赖（uv 自动选用 Python 3.14）
+uv sync
+
+# 3. 激活虚拟环境（可选，也可直接用 uv run）
+.venv\Scripts\Activate.ps1
 ```
 
-`sqlcipher3` 包内置 SQLCipher 4 动态库，无需额外安装系统级 sqlcipher。  
-`convert.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。
+### 依赖说明
+
+| 包 | 用途 |
+|----|------|
+| `sqlcipher3` | SQLCipher 4 解密 |
+| `protobuf` | 解析消息体中的 Protobuf blob |
+| `python-dotenv` | 从 `.env` 文件读取配置（可选） |
+| `bbpb` | Protobuf 辅助工具 |
+
+`3.convert.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。
