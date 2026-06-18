@@ -13,6 +13,11 @@ NTQQ（QQ NT 架构）将聊天记录存储在 SQLCipher 4 加密的 SQLite 数�
 
 https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 
+## 字段分析文档
+
+- 字段总览：[db_docs/c2c_msg_table/summary.md](db_docs/c2c_msg_table/summary.md)
+- 字段文档组目录：[db_docs/c2c_msg_table/](db_docs/c2c_msg_table/)
+
 ---
 
 ## 文件说明
