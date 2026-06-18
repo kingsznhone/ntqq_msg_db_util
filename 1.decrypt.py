@@ -65,7 +65,8 @@ def open_enc(path: pathlib.Path):
     """打开 SQLCipher 加密数据库，返回已验证的连接"""
     conn = sc.connect(str(path), isolation_level=None)
     conn.execute("PRAGMA cipher_page_size = 4096;")   # 必须在 key 之前
-    conn.execute(f"PRAGMA key = '{DB_KEY}';")
+    safe_key = DB_KEY.replace("'", "''")
+    conn.execute(f"PRAGMA key = '{safe_key}';")
     conn.execute("PRAGMA kdf_iter = 4000;")
     conn.execute("PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
     conn.execute("PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA512;")
