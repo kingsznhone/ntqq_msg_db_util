@@ -47,7 +47,7 @@ def convert(src_path: str, dst_path: str, batch_size: int) -> None:
     dst = sqlite3.connect(dst_path)
     dst.execute("PRAGMA journal_mode=WAL")
     dst.execute("PRAGMA synchronous=NORMAL")
-    dst.execute("PRAGMA cache_size=-65536")   # 64 MB page cache
+    dst.execute("PRAGMA cache_size=-65536")  # 64 MB page cache
 
     # 初始化 schema（幂等），再摘掉 FTS 触发器供批量写入使用
     init_db(dst)
@@ -58,9 +58,9 @@ def convert(src_path: str, dst_path: str, batch_size: int) -> None:
     log.info("目标库：%s", dst_path)
 
     processed = 0
-    errors    = 0
-    t0        = time.monotonic()
-    t_last    = t0
+    errors = 0
+    t0 = time.monotonic()
+    t_last = t0
     batch: list[dict] = []
 
     def _flush() -> None:
@@ -89,20 +89,26 @@ def convert(src_path: str, dst_path: str, batch_size: int) -> None:
             _flush()
 
             if processed % _LOG_INTERVAL == 0 or processed == total:
-                now     = time.monotonic()
+                now = time.monotonic()
                 elapsed = now - t0
-                speed   = processed / elapsed if elapsed > 0 else 0
-                pct     = processed * 100 // total
+                speed = processed / elapsed if elapsed > 0 else 0
+                pct = processed * 100 // total
                 log.info(
                     "[%3d%%] %9d / %d  %.0f 行/s  错误 %d",
-                    pct, processed, total, speed, errors,
+                    pct,
+                    processed,
+                    total,
+                    speed,
+                    errors,
                 )
                 t_last = now
 
     _flush()
 
     elapsed = time.monotonic() - t0
-    log.info("主表写入完成：%d 行，错误 %d 行，耗时 %.1f 秒", processed, errors, elapsed)
+    log.info(
+        "主表写入完成：%d 行，错误 %d 行，耗时 %.1f 秒", processed, errors, elapsed
+    )
 
     log.info("重建 FTS 索引（messages_fts）…")
     rebuild_fts(dst)

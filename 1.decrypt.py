@@ -15,6 +15,7 @@ PRAGMA 正确顺序（实测验证，顺序错误会导致解密失败）：
 
 依赖：uv add sqlcipher3
 """
+
 import os
 import re
 import sys
@@ -29,18 +30,21 @@ load_dotenv()
 
 
 # ─── 配置（修改这里）────────────────────────────────────────────────────────
-INPUT_DB  = "nt_msg.db"          # 原始输入（含 1024 字节 NTQQ 自定义头）
-CLEAR_DB  = "nt_msg_clear.db"    # 剥头后的 SQLCipher 文件（中间产物）
-OUTPUT_DB = "nt_msg_plain.db"    # 最终明文 SQLite 输出
+INPUT_DB = "nt_msg.db"  # 原始输入（含 1024 字节 NTQQ 自定义头）
+CLEAR_DB = "nt_msg_clear.db"  # 剥头后的 SQLCipher 文件（中间产物）
+OUTPUT_DB = "nt_msg_plain.db"  # 最终明文 SQLite 输出
 
-DB_KEY = os.getenv("NTQQ_DB_KEY") or ""  # 优先读取环境变量；也可直接在引号内填写回退密钥
+DB_KEY = (
+    os.getenv("NTQQ_DB_KEY") or ""
+)  # 优先读取环境变量；也可直接在引号内填写回退密钥
 # ────────────────────────────────────────────────────────────────────────────
 
-HEADER_SIZE = 1024      # NTQQ 自定义头长度（固定值）
-BATCH_SIZE  = 5000      # 每批读取行数（遇到损坏时自动缩小）
+HEADER_SIZE = 1024  # NTQQ 自定义头长度（固定值）
+BATCH_SIZE = 5000  # 每批读取行数（遇到损坏时自动缩小）
 
 
 # ── 步骤 1：剥离头部 ─────────────────────────────────────────────────────────
+
 
 def strip_header(src: pathlib.Path, dst: pathlib.Path) -> None:
     expected = src.stat().st_size - HEADER_SIZE
@@ -51,7 +55,7 @@ def strip_header(src: pathlib.Path, dst: pathlib.Path) -> None:
     with open(src, "rb") as f:
         f.seek(HEADER_SIZE)
         with open(dst, "wb") as out:
-            while chunk := f.read(64 << 20):   # 64 MB 分块，避免大文件占满内存
+            while chunk := f.read(64 << 20):  # 64 MB 分块，避免大文件占满内存
                 out.write(chunk)
     actual = dst.stat().st_size
     if actual != expected:
@@ -61,10 +65,11 @@ def strip_header(src: pathlib.Path, dst: pathlib.Path) -> None:
 
 # ── 步骤 2：打开加密数据库 ────────────────────────────────────────────────────
 
+
 def open_enc(path: pathlib.Path):
     """打开 SQLCipher 加密数据库，返回已验证的连接"""
     conn = sc.connect(str(path), isolation_level=None)
-    conn.execute("PRAGMA cipher_page_size = 4096;")   # 必须在 key 之前
+    conn.execute("PRAGMA cipher_page_size = 4096;")  # 必须在 key 之前
     safe_key = DB_KEY.replace("'", "''")
     conn.execute(f"PRAGMA key = '{safe_key}';")
     conn.execute("PRAGMA kdf_iter = 4000;")
@@ -76,7 +81,10 @@ def open_enc(path: pathlib.Path):
 
 # ── 步骤 3：逐表导出 ─────────────────────────────────────────────────────────
 
-def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) -> tuple[int, int]:
+
+def export_table(
+    enc_path: pathlib.Path, plain: sqlite3.Connection, table: str
+) -> tuple[int, int]:
     """
     将加密库中的一张表导出到明文库。
 
@@ -93,7 +101,9 @@ def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) 
     ddl = enc.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
     ).fetchone()[0]
-    ddl_safe = re.sub(r"^CREATE\s+TABLE\s+", "CREATE TABLE IF NOT EXISTS ", ddl, flags=re.IGNORECASE)
+    ddl_safe = re.sub(
+        r"^CREATE\s+TABLE\s+", "CREATE TABLE IF NOT EXISTS ", ddl, flags=re.IGNORECASE
+    )
     plain.execute(ddl_safe)
     plain.commit()
 
@@ -102,7 +112,9 @@ def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) 
 
     # 断点：从输出库的 max(rowid) 续跑
     try:
-        last_rowid = plain.execute(f'SELECT max(rowid) FROM "{table}"').fetchone()[0] or 0
+        last_rowid = (
+            plain.execute(f'SELECT max(rowid) FROM "{table}"').fetchone()[0] or 0
+        )
     except Exception:
         last_rowid = 0
 
@@ -117,17 +129,20 @@ def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) 
             # rowid 作游标；SELECT rowid, * 让 rowid 作为额外首列
             rows_with_id = enc.execute(
                 f'SELECT rowid, * FROM "{table}" WHERE rowid > ? ORDER BY rowid LIMIT ?',
-                (last_rowid, batch)
+                (last_rowid, batch),
             ).fetchall()
         except Exception:
             # 损坏：重连 + 缩小批次
             enc.close()
             enc = open_enc(enc_path)
             if batch == 1:
-                last_rowid += 1     # 跳过这个坏 rowid
+                last_rowid += 1  # 跳过这个坏 rowid
                 bad_skips += 1
                 if bad_skips % 50 == 0:
-                    print(f"      ... {ok_rows:,} 行  {bad_skips} 处损坏  {time.time()-t0:.0f}s", flush=True)
+                    print(
+                        f"      ... {ok_rows:,} 行  {bad_skips} 处损坏  {time.time() - t0:.0f}s",
+                        flush=True,
+                    )
                 batch = min(BATCH_SIZE, 100)
             else:
                 batch = max(1, batch // 4)
@@ -137,7 +152,7 @@ def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) 
             break
 
         last_rowid = rows_with_id[-1][0]
-        rows = [r[1:] for r in rows_with_id]    # 去掉首列 rowid，还原原始列顺序
+        rows = [r[1:] for r in rows_with_id]  # 去掉首列 rowid，还原原始列顺序
         plain.executemany(f'INSERT OR IGNORE INTO "{table}" VALUES ({ph})', rows)
         plain.commit()
         ok_rows += len(rows)
@@ -148,13 +163,17 @@ def export_table(enc_path: pathlib.Path, plain: sqlite3.Connection, table: str) 
         if ok_rows % 500_000 == 0:
             elapsed = time.time() - t0
             rate = ok_rows / elapsed if elapsed else 0
-            print(f"      ... {ok_rows:,}/{total_src:,} 行  ({rate:.0f} 行/s)", flush=True)
+            print(
+                f"      ... {ok_rows:,}/{total_src:,} 行  ({rate:.0f} 行/s)", flush=True
+            )
 
     enc.close()
     elapsed = time.time() - t0
     rate = ok_rows / elapsed if elapsed else 0
-    print(f"      ✓  {ok_rows:,}/{total_src:,} 行  "
-          f"跳过 {bad_skips} 处  ({rate:.0f} 行/s)  {elapsed:.0f}s")
+    print(
+        f"      ✓  {ok_rows:,}/{total_src:,} 行  "
+        f"跳过 {bad_skips} 处  ({rate:.0f} 行/s)  {elapsed:.0f}s"
+    )
     return ok_rows, bad_skips
 
 
@@ -171,17 +190,18 @@ def copy_indexes(enc_path: pathlib.Path, plain: sqlite3.Connection) -> int:
             plain.execute(ddl)
             copied += 1
         except Exception:
-            pass    # 已存在或依赖表不存在时跳过
+            pass  # 已存在或依赖表不存在时跳过
     plain.commit()
     return copied
 
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
 
+
 def main():
-    src   = pathlib.Path(INPUT_DB)
+    src = pathlib.Path(INPUT_DB)
     clear = pathlib.Path(CLEAR_DB)
-    out   = pathlib.Path(OUTPUT_DB)
+    out = pathlib.Path(OUTPUT_DB)
 
     if not src.exists():
         sys.exit(f"[错误] 找不到输入文件: {src.resolve()}")
@@ -197,9 +217,12 @@ def main():
         enc = open_enc(clear)
     except Exception as e:
         sys.exit(f"[错误] 解密失败，请检查密钥: {e}")
-    tables = [r[0] for r in enc.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()]
+    tables = [
+        r[0]
+        for r in enc.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+    ]
     enc.close()
     print(f"      密钥正确 ✓  共 {len(tables)} 张表")
     for t in tables:
@@ -210,32 +233,37 @@ def main():
     plain = sqlite3.connect(str(out))
     plain.execute("PRAGMA journal_mode = WAL;")
     plain.execute("PRAGMA synchronous = NORMAL;")
-    plain.execute("PRAGMA cache_size = -65536;")    # 64 MB 页缓存
+    plain.execute("PRAGMA cache_size = -65536;")  # 64 MB 页缓存
 
-    total_ok  = 0
+    total_ok = 0
     total_bad = 0
     t_all = time.time()
 
-    INTERNAL = {"sqlite_sequence", "sqlite_stat1", "sqlite_stat2",
-                 "sqlite_stat3", "sqlite_stat4"}
+    INTERNAL = {
+        "sqlite_sequence",
+        "sqlite_stat1",
+        "sqlite_stat2",
+        "sqlite_stat3",
+        "sqlite_stat4",
+    }
 
     for i, table in enumerate(tables, 1):
         print(f"\n  [{i}/{len(tables)}] {table}", flush=True)
         if table in INTERNAL:
-            print(f"      ✓  内置表，跳过")
+            print("      ✓  内置表，跳过")
             continue
         ok, bad = export_table(clear, plain, table)
-        total_ok  += ok
+        total_ok += ok
         total_bad += bad
 
     # 复制索引
-    print(f"\n  [索引]", flush=True)
+    print("\n  [索引]", flush=True)
     n_idx = copy_indexes(clear, plain)
     print(f"      复制 {n_idx} 个索引")
 
     plain.close()
 
-    size    = out.stat().st_size
+    size = out.stat().st_size
     elapsed = time.time() - t_all
     print(f"\n{'=' * 60}")
     print(f"[完成] 总计 {total_ok:,} 行  跳过 {total_bad} 处损坏")

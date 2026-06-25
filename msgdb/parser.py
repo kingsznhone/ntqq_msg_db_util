@@ -54,12 +54,13 @@ SELECT
 FROM c2c_msg_table
 ORDER BY "40001\""""
 
-SELECT_COUNT_SQL = 'SELECT COUNT(*) FROM c2c_msg_table'
+SELECT_COUNT_SQL = "SELECT COUNT(*) FROM c2c_msg_table"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 内部辅助
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _hex(b: bytes) -> str:
     """将 raw binary bytes 转为 hex 字符串；None / 空 bytes 返回空串。"""
@@ -73,6 +74,7 @@ def _first_text(contents: list[msg_pb2.MsgContent]) -> str | None:
 
 
 # ── 各类型 Content 构造 ────────────────────────────────────────────────────
+
 
 def _parse_image(c: msg_pb2.MsgContent) -> ImageContent:
     fallbacks = list(c.text_fallback)
@@ -154,6 +156,7 @@ def _parse_legacy_forward(c: msg_pb2.MsgContent) -> LegacyForwardContent:
 
 # ── msg_type=2 多段解析 ─────────────────────────────────────────────────────
 
+
 def _segment_from(c: msg_pb2.MsgContent) -> dict | None:
     """将单个 MsgContent 转为 content dict，用作 MixedContent.segments 的一项。"""
     ct = c.content_type
@@ -178,7 +181,14 @@ def _segment_from(c: msg_pb2.MsgContent) -> dict | None:
 
 def _parse_msg_type2(
     contents: list[msg_pb2.MsgContent],
-) -> TextContent | ImageContent | VideoContent | StickerContent | LegacyForwardContent | MixedContent:
+) -> (
+    TextContent
+    | ImageContent
+    | VideoContent
+    | StickerContent
+    | LegacyForwardContent
+    | MixedContent
+):
     """
     解析 msg_type=2（标准消息）。
 
@@ -213,13 +223,24 @@ def _parse_msg_type2(
 
 # ── 顶层分发 ───────────────────────────────────────────────────────────────
 
+
 def _parse_content(
     msg_type: int,
     contents: list[msg_pb2.MsgContent],
 ) -> (
-    TextContent | ImageContent | VideoContent | FileContent |
-    StickerContent | ContactContent | ReplyContent | ForwardContent |
-    LegacyForwardContent | CallContent | SysContent | MixedContent | None
+    TextContent
+    | ImageContent
+    | VideoContent
+    | FileContent
+    | StickerContent
+    | ContactContent
+    | ReplyContent
+    | ForwardContent
+    | LegacyForwardContent
+    | CallContent
+    | SysContent
+    | MixedContent
+    | None
 ):
     if not contents:
         return None
@@ -281,6 +302,7 @@ def _parse_content(
 # 公共入口
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def parse_row(row: sqlite3.Row) -> Message:
     """
     将 c2c_msg_table 的一行解析为 Message。
@@ -288,21 +310,21 @@ def parse_row(row: sqlite3.Row) -> Message:
     40800 为 NULL 或 protobuf 解析失败时，content / text 等字段为 None，
     其余元数据字段照常填充，不会抛出异常。
     """
-    rowid     = row["id"]
-    msg_id    = row["id"]        or 0
+    rowid = row["id"]
+    msg_id = row["id"] or 0
     timestamp = row["timestamp"] or 0
     direction = row["direction"] or 0
     sender_uid = row["sender_uid"] or ""
-    sender_qq  = row["sender_qq"]  or None
-    peer_uid   = row["peer_uid"]   or ""
-    peer_qq    = row["peer_qq"]    or 0
-    msg_type   = row["msg_type"]   or 0
-    blob       = row["blob"]
+    sender_qq = row["sender_qq"] or None
+    peer_uid = row["peer_uid"] or ""
+    peer_qq = row["peer_qq"] or 0
+    msg_type = row["msg_type"] or 0
+    blob = row["blob"]
 
     content_type: int | None = None
-    proto_ver:    str | None = None
-    inner_ts:     int | None = None
-    text:         str | None = None
+    proto_ver: str | None = None
+    inner_ts: int | None = None
+    text: str | None = None
     content = None
 
     if blob:
@@ -313,10 +335,10 @@ def parse_row(row: sqlite3.Row) -> Message:
             if contents:
                 first = contents[0]
                 content_type = first.content_type or None
-                proto_ver    = first.ext_proto_ver  or None
-                inner_ts     = first.ext_timestamp  or None
-                text         = _first_text(contents)
-                content      = _parse_content(msg_type, contents)
+                proto_ver = first.ext_proto_ver or None
+                inner_ts = first.ext_timestamp or None
+                text = _first_text(contents)
+                content = _parse_content(msg_type, contents)
         except Exception as exc:
             log.debug("id=%d parse error: %s", rowid, exc)
 

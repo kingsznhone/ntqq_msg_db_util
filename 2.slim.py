@@ -15,6 +15,7 @@ nt_msg_slim.db 生成工具
 
 依赖：uv add sqlcipher3
 """
+
 import os
 import re
 import sys
@@ -28,18 +29,18 @@ load_dotenv()
 
 
 # ─── 配置（与 main.py 保持一致）───────────────────────────────────────────────
-INPUT_DB  = "nt_msg.db"          # 含 1024 字节头的原始文件（只用于读取头部）
-CLEAR_DB  = "nt_msg_clear.db"    # 已剥头的 SQLCipher 源库（只读）
-OUTPUT_DB = "nt_msg_slim.db"     # 输出：无 group_msg_table 数据 + 重新加头
+INPUT_DB = "nt_msg.db"  # 含 1024 字节头的原始文件（只用于读取头部）
+CLEAR_DB = "nt_msg_clear.db"  # 已剥头的 SQLCipher 源库（只读）
+OUTPUT_DB = "nt_msg_slim.db"  # 输出：无 group_msg_table 数据 + 重新加头
 
 DB_KEY = os.getenv("NTQQ_DB_KEY") or ""  # 优先读取环境变量；也可在引号内填写回退密钥
 
-SKIP_TABLE = "group_msg_table"   # 该表只建空表，不复制行
+SKIP_TABLE = "group_msg_table"  # 该表只建空表，不复制行
 # ─────────────────────────────────────────────────────────────────────────────
 
 HEADER_SIZE = 1024
-WORK_DB     = "_slim_work.db"
-BATCH_SIZE  = 5000
+WORK_DB = "_slim_work.db"
+BATCH_SIZE = 5000
 
 
 def open_enc(path: pathlib.Path):
@@ -53,12 +54,16 @@ def open_enc(path: pathlib.Path):
     return conn
 
 
-def copy_table(src: sc.Connection, dst: sc.Connection, table: str, src_path: pathlib.Path) -> tuple[int, int]:
+def copy_table(
+    src: sc.Connection, dst: sc.Connection, table: str, src_path: pathlib.Path
+) -> tuple[int, int]:
     """rowid 游标分页，把 src 中的表复制到 dst，遇到损坏自动跳过。"""
     ddl = src.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
     ).fetchone()[0]
-    ddl_safe = re.sub(r"^CREATE\s+TABLE\s+", "CREATE TABLE IF NOT EXISTS ", ddl, flags=re.IGNORECASE)
+    ddl_safe = re.sub(
+        r"^CREATE\s+TABLE\s+", "CREATE TABLE IF NOT EXISTS ", ddl, flags=re.IGNORECASE
+    )
     dst.execute(ddl_safe)
 
     ncols = len(src.execute(f'PRAGMA table_info("{table}")').fetchall())
@@ -78,7 +83,7 @@ def copy_table(src: sc.Connection, dst: sc.Connection, table: str, src_path: pat
         try:
             rows_with_id = enc.execute(
                 f'SELECT rowid, * FROM "{table}" WHERE rowid > ? ORDER BY rowid LIMIT ?',
-                (last_rowid, batch)
+                (last_rowid, batch),
             ).fetchall()
         except Exception:
             enc.close()
@@ -87,7 +92,10 @@ def copy_table(src: sc.Connection, dst: sc.Connection, table: str, src_path: pat
                 last_rowid += 1
                 bad_skips += 1
                 if bad_skips % 50 == 0:
-                    print(f"      ... {ok_rows:,} 行  {bad_skips} 处损坏  {time.time()-t0:.0f}s", flush=True)
+                    print(
+                        f"      ... {ok_rows:,} 行  {bad_skips} 处损坏  {time.time() - t0:.0f}s",
+                        flush=True,
+                    )
                 batch = min(BATCH_SIZE, 100)
             else:
                 batch = max(1, batch // 4)
@@ -109,7 +117,9 @@ def copy_table(src: sc.Connection, dst: sc.Connection, table: str, src_path: pat
         if ok_rows % 500_000 == 0:
             elapsed = time.time() - t0
             rate = ok_rows / elapsed if elapsed else 0
-            print(f"      ... {ok_rows:,}/{total_src:,} 行  ({rate:.0f} 行/s)", flush=True)
+            print(
+                f"      ... {ok_rows:,}/{total_src:,} 行  ({rate:.0f} 行/s)", flush=True
+            )
 
     # 如果重新打开了连接，关掉它（不关调用者传入的原始连接）
     if enc is not src:
@@ -117,15 +127,17 @@ def copy_table(src: sc.Connection, dst: sc.Connection, table: str, src_path: pat
 
     elapsed = time.time() - t0
     rate = ok_rows / elapsed if elapsed else 0
-    print(f"      ✓  {ok_rows:,}/{total_src:,} 行  跳过 {bad_skips} 处  ({rate:.0f} 行/s)  {elapsed:.0f}s")
+    print(
+        f"      ✓  {ok_rows:,}/{total_src:,} 行  跳过 {bad_skips} 处  ({rate:.0f} 行/s)  {elapsed:.0f}s"
+    )
     return ok_rows, bad_skips
 
 
 def main():
     src_hdr = pathlib.Path(INPUT_DB)
-    clear   = pathlib.Path(CLEAR_DB)
-    out     = pathlib.Path(OUTPUT_DB)
-    work    = pathlib.Path(WORK_DB)
+    clear = pathlib.Path(CLEAR_DB)
+    out = pathlib.Path(OUTPUT_DB)
+    work = pathlib.Path(WORK_DB)
 
     for p, name in [(src_hdr, INPUT_DB), (clear, CLEAR_DB)]:
         if not p.exists():
@@ -139,9 +151,12 @@ def main():
     # 1. 打开源库，列出所有表
     print(f"[1/4] 打开源库  {clear.name} ...", flush=True)
     src = open_enc(clear)
-    tables = [r[0] for r in src.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()]
+    tables = [
+        r[0]
+        for r in src.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+    ]
     print(f"      共 {len(tables)} 张表")
     for t in tables:
         flag = "  ← 只建空表，不复制行" if t == SKIP_TABLE else ""
@@ -160,37 +175,47 @@ def main():
     dst.execute("BEGIN;")
 
     # 3. 逐表处理
-    print(f"\n[3/4] 复制表数据 ...", flush=True)
-    total_ok  = 0
+    print("\n[3/4] 复制表数据 ...", flush=True)
+    total_ok = 0
     total_bad = 0
     t_all = time.time()
 
     # SQLite 内置表，不能手动建表（AUTOINCREMENT 等机制会自动维护）
-    INTERNAL_TABLES = {"sqlite_sequence", "sqlite_stat1", "sqlite_stat2",
-                       "sqlite_stat3", "sqlite_stat4"}
+    INTERNAL_TABLES = {
+        "sqlite_sequence",
+        "sqlite_stat1",
+        "sqlite_stat2",
+        "sqlite_stat3",
+        "sqlite_stat4",
+    }
 
     for i, table in enumerate(tables, 1):
         print(f"\n  [{i}/{len(tables)}] {table}", flush=True)
         if table in INTERNAL_TABLES:
-            print(f"      ✓  内置表，跳过（SQLite 自动管理）")
+            print("      ✓  内置表，跳过（SQLite 自动管理）")
             continue
         if table == SKIP_TABLE:
             # 只建空表
             ddl = src.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
             ).fetchone()[0]
-            ddl_safe = re.sub(r"^CREATE\s+TABLE\s+", "CREATE TABLE IF NOT EXISTS ", ddl, flags=re.IGNORECASE)
+            ddl_safe = re.sub(
+                r"^CREATE\s+TABLE\s+",
+                "CREATE TABLE IF NOT EXISTS ",
+                ddl,
+                flags=re.IGNORECASE,
+            )
             dst.execute(ddl_safe)
             dst.execute("COMMIT;")
             dst.execute("BEGIN;")
-            print(f"      ✓  空表已建（跳过行复制）")
+            print("      ✓  空表已建（跳过行复制）")
         else:
             ok, bad = copy_table(src, dst, table, clear)
-            total_ok  += ok
+            total_ok += ok
             total_bad += bad
 
     # 复制索引
-    print(f"\n  [索引]", flush=True)
+    print("\n  [索引]", flush=True)
     indexes = src.execute(
         "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"
     ).fetchall()
@@ -212,7 +237,9 @@ def main():
     for ext in ("-wal", "-shm"):
         pathlib.Path(WORK_DB + ext).unlink(missing_ok=True)
 
-    print(f"\n      目标库  {work.stat().st_size:,} bytes  耗时 {time.time()-t_all:.0f}s")
+    print(
+        f"\n      目标库  {work.stat().st_size:,} bytes  耗时 {time.time() - t_all:.0f}s"
+    )
 
     # 4. 拼接头部
     print(f"\n[4/4] 读取头部 + 写出  {out.name} ...", flush=True)
@@ -231,12 +258,14 @@ def main():
 
     work.unlink()
     size = out.stat().st_size
-    print(f"      写出 {size:,} bytes  ({time.time()-t0:.0f}s)")
+    print(f"      写出 {size:,} bytes  ({time.time() - t0:.0f}s)")
 
     print(f"\n{'=' * 60}")
     print(f"[完成] 数据行 {total_ok:,}  跳过损坏 {total_bad} 处")
     print(f"       输出: {out.resolve()}")
-    print(f"       大小: {size / 1024**2:.0f} MB  (原始: {clear.stat().st_size / 1024**2:.0f} MB)")
+    print(
+        f"       大小: {size / 1024**2:.0f} MB  (原始: {clear.stat().st_size / 1024**2:.0f} MB)"
+    )
 
 
 if __name__ == "__main__":
