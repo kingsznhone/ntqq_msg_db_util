@@ -28,7 +28,7 @@ https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 | `nt_msg_clear.db` | 剥头后的 SQLCipher 文件（中间产物） |
 | `nt_msg_plain.db` | **最终明文 SQLite**，可直接用任意 SQLite 工具打开 |
 | `nt_msg_slim.db` | 以相同密钥重新加密、清空了 `group_msg_table`、并在头部拼接原始 1024 字节头的精简版（SQLCipher 格式，可直接回传 NTQQ） |
-| `nt_msg_export.db` | **结构化导出库**，由 `convert.py` 生成，仅含关键字段，支持全文搜索 |
+| `nt_msg_export.db` | **结构化导出库**，由 `3.export.py` 生成，包含 C2C 与 group 两张消息表，支持全文搜索 |
 
 ---
 
@@ -124,25 +124,24 @@ uv run python 2.slim.py
 
 ---
 
-## 脚本三：`3.convert.py` — 导出结构化消息数据库
+## 脚本三：`3.export.py` — 导出结构化消息数据库
 
 ### 背景
 
-`nt_msg_plain.db` 中的消息内容（`c2c_msg_table.40800` 列）以 Protobuf 编码存储，且夹杂大量未知字段。该脚本解析 Protobuf，提取关键字段，输出一个结构清晰、可直接查询的 SQLite 数据库 `nt_msg_export.db`。
+`nt_msg_plain.db` 中的消息内容（`c2c_msg_table.40800` 和 `group_msg_table.40800` 列）以 Protobuf 编码存储，且夹杂大量未知字段。该脚本解析 Protobuf，提取关键字段，输出一个结构清晰、可直接查询的 SQLite 数据库 `nt_msg_export.db`。
 
 ### 思路
 
-1. **只读**打开 `nt_msg_plain.db`，按 `40001`（消息 ID）顺序扫描 `c2c_msg_table`。
-2. 用编译好的 `msgdb/msg_pb2.py` 解析每行的 `40800` Protobuf blob。
-3. 按 `40011`（消息类型）分发到对应解析函数，提取文本/图片/文件/通话等结构化内容，序列化为 JSON 写入 `content` 列。
-4. 批量写入（默认 2000 行/事务），写入期间暂停 FTS5 触发器，全部完成后一次性重建 FTS 索引。
+1. **只读**打开 `nt_msg_plain.db`，分别按 `40001`（消息 ID）顺序扫描 `c2c_msg_table` 和 `group_msg_table`。
+2. 用 `msgdb/proto/c2c_40800_pb2.py` 解析两张表共用的 `40800` Protobuf blob。
+3. C2C 消息写入 `c2c_messages`，群消息写入 `group_messages`；群消息保留 `group_id/group_qq`、`subtype` 和 `parse_status`，并将共享 `MsgContent` 完整 JSON 写入 `content`。
+4. 批量写入（默认 2000 行/事务），写入期间暂停两张表的 FTS5 触发器，全部完成后一次性重建索引。
 
-### 输出表结构（`messages`）
+### 输出表结构（`c2c_messages`）
 
 | 列 | 来源字段 | 说明 |
 |----|---------|------|
-| `id` | `rowid` | 原始 c2c_msg_table rowid（主键） |
-| `msg_id` | `40001` | 消息唯一 ID（全局单调递增） |
+| `msg_id` | `40001` | 消息唯一 ID，同时作为 `c2c_messages` 主键 |
 | `timestamp` | `40050` | Unix 秒，服务端发送时间 |
 | `direction` | `40013` | 1=发出，0=收到 |
 | `sender_uid` | `40020` | 发送方 NT UID（`u_...`） |
@@ -168,19 +167,39 @@ uv run python 2.slim.py
 
 支持的 `type` 值：`text` / `image` / `video` / `file` / `sticker` / `contact` / `reply` / `forward` / `legacy_forward` / `call` / `sys` / `mixed`
 
+### 输出表结构（`group_messages`）
+
+| 列 | 来源字段 | 说明 |
+|----|---------|------|
+| `msg_id` | `40001` | 群消息唯一 ID，同时作为 `group_messages` 主键 |
+| `timestamp` | `40050` | Unix 秒级时间戳 |
+| `direction` | `40013` | 消息来源/方向标志 |
+| `sender_uid` | `40020` | 发送者 NT UID |
+| `sender_qq` | `40033` | 发送者 QQ 号 |
+| `group_id` | `40021` | 群聊对象 ID（十进制群号字符串） |
+| `group_qq` | `40030` | 群号数值 |
+| `msg_type` | `40011` | 消息外层类型 |
+| `subtype` | `40012` | 消息子类型/属性组合 |
+| `content_type` | `40800` → `45002` | 首段内容类型 |
+| `text` | `40800` → `45101` | 合并后的文本，供全文搜索 |
+| `parse_status` | `40800` 解析 | `null` / `typed` / `wire_fallback` |
+| `content` | `40800` 解析 | 完整 `MsgContent` JSON；未知结构则保留 wire 字段 |
+
+群聊全文索引为 `group_messages_fts`，其外部内容行号使用 `group_messages.msg_id`；C2C 全文索引为 `c2c_messages_fts`。
+
 ### 使用
 
 ```bash
-uv run python 3.convert.py                          # 使用默认路径
-uv run python 3.convert.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5000
-uv run python 3.convert.py --debug                  # 显示逐行解析错误详情
+uv run python 3.export.py                          # 使用默认路径
+uv run python 3.export.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5000
+uv run python 3.export.py --debug                  # 显示逐行解析错误详情
 ```
 
 ### 后果
 
 - 生成 `nt_msg_export.db`：标准 SQLite，无需密钥，可直接用 DB Browser 等工具打开
-- 自动建立时间、会话、消息类型索引及 FTS5 全文搜索虚拟表（`messages_fts`）
-- 实测：131 万行，0 解析错误，约 30 秒完成
+- 自动建立时间、会话、消息类型索引及 FTS5 全文搜索虚拟表（`c2c_messages_fts`、`group_messages_fts`）
+- 实测：C2C 与 group 共约 188 万行；Protobuf 解析失败会保留为 `null` 或 `wire_fallback`，单行转换异常会单独计入错误计数并跳过，不会中断整个导出
 
 ---
 
@@ -218,4 +237,4 @@ uv sync
 | `python-dotenv` | 从 `.env` 文件读取配置（可选） |
 | `bbpb` | Protobuf 辅助工具 |
 
-`3.convert.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。
+`3.export.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。

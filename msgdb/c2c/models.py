@@ -204,9 +204,8 @@ def content_from_dict(d: dict) -> Content:
 
 @dataclass
 class Message:
-    """一条完整消息记录，对应导出库 messages 表的一行。"""
+    """一条完整消息记录，对应导出库 c2c_messages 表的一行。"""
 
-    id: int  # 原始 c2c_msg_table rowid
     msg_id: int  # 40001 消息唯一 ID
     timestamp: int  # 40050 Unix 秒（外层服务端时间）
     direction: int  # 40013：1=发出，0=收到
@@ -223,11 +222,10 @@ class Message:
 
     def to_db_row(self) -> dict:
         """
-        转换为可直接写入 messages 表的字典。
+        转换为可直接写入 c2c_messages 表的字典。
         content 字段序列化为 JSON 字符串；其余字段类型与列定义对齐。
         """
         return {
-            "id": self.id,
             "msg_id": self.msg_id,
             "timestamp": self.timestamp,
             "direction": self.direction,
@@ -249,7 +247,7 @@ class Message:
 
     @staticmethod
     def from_db_row(row: dict) -> "Message":
-        """从 messages 表行还原 Message（content 反序列化）。"""
+        """从 c2c_messages 表行还原 Message（content 反序列化）。"""
         d = dict(row)
         raw = d.pop("content")
         content = content_from_dict(json.loads(raw)) if raw else None

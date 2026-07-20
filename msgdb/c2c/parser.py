@@ -15,7 +15,8 @@ import json
 import logging
 import sqlite3
 
-from . import msg_pb2
+from msgdb.proto import c2c_40800_pb2 as schema_pb2
+from msgdb.proto.c2c_40800_parser import parse_40800
 from .models import (
     CallContent,
     ContactContent,
@@ -42,7 +43,7 @@ log = logging.getLogger(__name__)
 # 只拉取 convert 需要的列，跳过大量未知列和其他 BLOB
 SELECT_SQL = """\
 SELECT
-    "40001" AS id,
+    "40001" AS msg_id,
     "40050" AS timestamp,
     "40013" AS direction,
     "40020" AS sender_uid,
@@ -52,7 +53,8 @@ SELECT
     "40011" AS msg_type,
     "40800" AS blob
 FROM c2c_msg_table
-ORDER BY "40001\""""
+ORDER BY "40001"
+"""
 
 SELECT_COUNT_SQL = "SELECT COUNT(*) FROM c2c_msg_table"
 
@@ -67,7 +69,16 @@ def _hex(b: bytes) -> str:
     return b.hex() if b else ""
 
 
-def _first_text(contents: list[msg_pb2.MsgContent]) -> str | None:
+def _text_value(value: bytes | str | None) -> str | None:
+    """将 protobuf bytes 文本字段转为可写入 JSON 的 UTF-8 字符串。"""
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _first_text(contents: list[schema_pb2.MsgContent]) -> str | None:
     """收集所有 MsgContent 中的文本段，合并后返回；无文本时返回 None。"""
     parts = [c.text for c in contents if c.text]
     return "\n".join(parts) if parts else None
@@ -76,8 +87,8 @@ def _first_text(contents: list[msg_pb2.MsgContent]) -> str | None:
 # ── 各类型 Content 构造 ────────────────────────────────────────────────────
 
 
-def _parse_image(c: msg_pb2.MsgContent) -> ImageContent:
-    fallbacks = list(c.text_fallback)
+def _parse_image(c: schema_pb2.MsgContent) -> ImageContent:
+    fallbacks = [_text_value(value) or "" for value in c.text_fallback]
     return ImageContent(
         filename=c.filename or "",
         width=c.img_width,
@@ -90,7 +101,7 @@ def _parse_image(c: msg_pb2.MsgContent) -> ImageContent:
     )
 
 
-def _parse_video(c: msg_pb2.MsgContent) -> VideoContent:
+def _parse_video(c: schema_pb2.MsgContent) -> VideoContent:
     return VideoContent(
         filename=c.filename or "",
         filesize=c.filesize,
@@ -101,34 +112,29 @@ def _parse_video(c: msg_pb2.MsgContent) -> VideoContent:
     )
 
 
-def _parse_file(c: msg_pb2.MsgContent) -> FileContent:
+def _parse_file(c: schema_pb2.MsgContent) -> FileContent:
     return FileContent(
         filename=c.filename or "",
         filesize=c.filesize,
         md5_hex=_hex(c.md5_raw),
         ext=c.file_ext or "",
         cdn_token=c.cdn_token or None,
-        cdn_path=c.cdn_path or None,
+        cdn_path=_text_value(c.cdn_path),
     )
 
 
-def _parse_sticker(c: msg_pb2.MsgContent) -> StickerContent:
-    inner = c.sticker.data.data.data
-    md5_raw = inner.md5
-    md5_str = (
-        md5_raw.decode("utf-8", errors="replace")
-        if isinstance(md5_raw, bytes)
-        else str(md5_raw)
-    )
+def _parse_sticker(c: schema_pb2.MsgContent) -> StickerContent:
+    raw = bytes(c.sticker)
+    md5_str = raw.hex()
     fallbacks = list(c.text_fallback)
     return StickerContent(
-        sticker_id=inner.sticker_id,
+        sticker_id=0,
         md5=md5_str,
         text_fallback=fallbacks[0] if fallbacks else None,
     )
 
 
-def _parse_contact(c: msg_pb2.MsgContent) -> ContactContent:
+def _parse_contact(c: schema_pb2.MsgContent) -> ContactContent:
     return ContactContent(
         uid=c.nc_uid_1 or "",
         nickname=c.nc_nickname_1 or c.nc_nickname_2 or "",
@@ -136,7 +142,7 @@ def _parse_contact(c: msg_pb2.MsgContent) -> ContactContent:
     )
 
 
-def _parse_reply(c: msg_pb2.MsgContent) -> ReplyContent:
+def _parse_reply(c: schema_pb2.MsgContent) -> ReplyContent:
     return ReplyContent(
         ref_uid=c.nc_uid_1 or "",
         ref_nickname=c.nc_nickname_1 or c.nc_nickname_2 or "",
@@ -146,7 +152,7 @@ def _parse_reply(c: msg_pb2.MsgContent) -> ReplyContent:
     )
 
 
-def _parse_legacy_forward(c: msg_pb2.MsgContent) -> LegacyForwardContent:
+def _parse_legacy_forward(c: schema_pb2.MsgContent) -> LegacyForwardContent:
     return LegacyForwardContent(
         resid=c.legacy_fwd_resid or None,
         uuid=c.legacy_fwd_uuid or None,
@@ -157,7 +163,7 @@ def _parse_legacy_forward(c: msg_pb2.MsgContent) -> LegacyForwardContent:
 # ── msg_type=2 多段解析 ─────────────────────────────────────────────────────
 
 
-def _segment_from(c: msg_pb2.MsgContent) -> dict | None:
+def _segment_from(c: schema_pb2.MsgContent) -> dict | None:
     """将单个 MsgContent 转为 content dict，用作 MixedContent.segments 的一项。"""
     ct = c.content_type
     if ct == 1 and c.text:
@@ -165,11 +171,11 @@ def _segment_from(c: msg_pb2.MsgContent) -> dict | None:
     if ct == 2:
         if c.img_width > 0:
             return content_to_dict(_parse_image(c))
-        if c.f45415 > 0 or c.vid_f47601 > 0:
+        if c.f45415 > 0 or c.video_flag > 0:
             return content_to_dict(_parse_video(c))
         if c.text:
             return content_to_dict(TextContent(text=c.text))
-    if ct == 5 or c.sticker.data.data.data.sticker_id != 0:
+    if ct == 5 or c.sticker:
         return content_to_dict(_parse_sticker(c))
     if ct == 9:
         return content_to_dict(_parse_video(c))
@@ -180,7 +186,7 @@ def _segment_from(c: msg_pb2.MsgContent) -> dict | None:
 
 
 def _parse_msg_type2(
-    contents: list[msg_pb2.MsgContent],
+    contents: list[schema_pb2.MsgContent],
 ) -> (
     TextContent
     | ImageContent
@@ -203,11 +209,11 @@ def _parse_msg_type2(
         if ct == 2:
             if c.img_width > 0:
                 return _parse_image(c)
-            if c.f45415 > 0 or c.vid_f47601 > 0:
+            if c.f45415 > 0 or c.video_flag > 0:
                 return _parse_video(c)
             # content_type=2 但既无图片尺寸也无视频时长 → 保底文本
             return TextContent(text=c.text or "")
-        if ct == 5 or c.sticker.data.data.data.sticker_id != 0:
+        if ct == 5 or c.sticker:
             return _parse_sticker(c)
         if ct == 9:
             return _parse_video(c)
@@ -226,7 +232,7 @@ def _parse_msg_type2(
 
 def _parse_content(
     msg_type: int,
-    contents: list[msg_pb2.MsgContent],
+    contents: list[schema_pb2.MsgContent],
 ) -> (
     TextContent
     | ImageContent
@@ -290,8 +296,8 @@ def _parse_content(
 
     if msg_type == 19:
         return CallContent(
-            call_type=c.call_f48151,
-            duration=c.call_f48152,
+            call_type=c.call_type,
+            duration=c.call_duration,
             desc=c.call_desc or "",
         )
 
@@ -310,8 +316,7 @@ def parse_row(row: sqlite3.Row) -> Message:
     40800 为 NULL 或 protobuf 解析失败时，content / text 等字段为 None，
     其余元数据字段照常填充，不会抛出异常。
     """
-    rowid = row["id"]
-    msg_id = row["id"] or 0
+    msg_id = row["msg_id"] or 0
     timestamp = row["timestamp"] or 0
     direction = row["direction"] or 0
     sender_uid = row["sender_uid"] or ""
@@ -328,10 +333,9 @@ def parse_row(row: sqlite3.Row) -> Message:
     content = None
 
     if blob:
-        try:
-            body = msg_pb2.MsgBody()
-            body.ParseFromString(blob)
-            contents = list(body.content)
+        result = parse_40800(blob)
+        if result.status == "typed":
+            contents = list(result.contents)
             if contents:
                 first = contents[0]
                 content_type = first.content_type or None
@@ -339,11 +343,10 @@ def parse_row(row: sqlite3.Row) -> Message:
                 inner_ts = first.ext_timestamp or None
                 text = _first_text(contents)
                 content = _parse_content(msg_type, contents)
-        except Exception as exc:
-            log.debug("id=%d parse error: %s", rowid, exc)
+        else:
+            log.debug("msg_id=%d parse error: %s", msg_id, result.error)
 
     return Message(
-        id=rowid,
         msg_id=msg_id,
         timestamp=timestamp,
         direction=direction,

@@ -1,4 +1,5 @@
 # c2c_msg_table 字段解析总览
+这套解析文档不移动至QQDecrypt库，因为更新文档需要进行统计实验，将字段研究表放在此repo方便ai开展工作
 
 > 数据库：`nt_msg_plain.db` | 表：`c2c_msg_table` | 总行数：1,318,588
 >

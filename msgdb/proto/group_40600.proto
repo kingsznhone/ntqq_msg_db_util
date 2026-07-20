@@ -1,0 +1,13 @@
+// group_msg_table.40600 Protobuf 超集。
+// 当前仅确认结构，42211/42261 的业务语义保持低置信度。
+syntax = "proto3";
+package qq_40600;
+
+message Body {
+  Content content = 40600;
+}
+
+message Content {
+  int64 status_timestamp = 42211;
+  int64 marker = 42261;
+}

@@ -1,0 +1,10 @@
+// group_msg_table.40605 Protobuf 超集。
+// 当前样本均为字段 40605 的空 length-delimited message。
+syntax = "proto3";
+package qq_40605;
+
+message Body {
+  Empty content = 40605;
+}
+
+message Empty {}

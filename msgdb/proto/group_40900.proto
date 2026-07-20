@@ -1,0 +1,40 @@
+// group_msg_table.40900 Protobuf 超集。
+// 40900 是引用/转发缓存；40800/40801/40802/41999 保留为 bytes，避免误定型。
+syntax = "proto3";
+package qq_40900;
+
+message Body {
+  repeated Content content = 40900;
+}
+
+message Empty {}
+
+message Content {
+  int64 msg_id = 40001;
+  int64 msg_random = 40002;
+  int64 msg_seq = 40003;
+  int64 server_seq = 40006;
+  int32 batch_flag = 40008;
+  int32 forward_flag = 40009;
+  int32 chat_type = 40010;
+  int32 msg_type = 40011;
+  int32 subtype = 40012;
+  int32 direction = 40013;
+  int32 f40016 = 40016;
+  bytes sender_uid = 40020;
+  bytes peer_id = 40021;
+  int32 group_id = 40030;
+  int32 sender_qq = 40033;
+  int32 send_status = 40041;
+  int64 msg_time = 40050;
+  int64 date_index = 40058;
+  string sender_name = 40093;
+  bytes f40094 = 40094;
+  repeated bytes message = 40800;
+  repeated bytes summary = 40801;
+  repeated bytes summary2 = 40802;
+  bytes f41999 = 41999;
+  int32 f40720 = 40720;
+  int32 f40721 = 40721;
+  int32 f49082 = 49082;
+}

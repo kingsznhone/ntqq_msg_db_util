@@ -1,0 +1,267 @@
+// C2C 与 group 共用的 40800 Protobuf 超集。
+//
+// 重要研究结论：
+//   - 外层为 repeated MsgContent；支持文本、媒体、回复、转发、系统和通话；
+//   - 45001 是 MsgContent 段级 ID，不等于表级 40001；
+//   - 45101 在 C2C/group 样本中按 UTF-8 应用层文本处理；
+//   - raw hash、CDN 二进制值保持 bytes；未知字段继续由 wire fallback 保留。
+syntax = "proto3";
+package qq_40800;
+
+message MsgBody {
+  repeated MsgContent content = 40800;
+}
+
+message Sub {}
+
+message MsgTimestamp {
+  int64 timestamp = 50202;
+  int32 f50205 = 50205;
+}
+
+message MediaRef {
+  int64 uid = 45417;
+  int32 f45527 = 45527;
+  Sub f45528 = 45528;
+  int64 f45529 = 45529;
+  string md5 = 45530;
+}
+
+message LocationExtra {
+  Sub f45857 = 45857;
+  Sub f45858 = 45858;
+  Sub f45859 = 45859;
+  Sub f45860 = 45860;
+  int32 f45861 = 45861;
+}
+
+message ReplyOrigin {
+  int64 msg_id = 45001;
+  int32 content_type = 45002;
+  int32 media_sub = 45003;
+  string text = 45101;
+  int64 text_attr = 45102;
+  string f45105 = 45105;
+  int32 img_width = 45411;
+  int32 img_height = 45412;
+  int32 f45416 = 45416;
+  int32 f45418 = 45418;
+  bytes f45424 = 45424;
+  int32 video_flag = 47601;
+  string video_text = 47602;
+  int32 f47605 = 47605;
+  int32 f47606 = 47606;
+  bytes f47607 = 47607;
+  Sub f47608 = 47608;
+  int32 f47609 = 47609;
+  int32 f47611 = 47611;
+  Sub f47612 = 47612;
+  int32 f47613 = 47613;
+  int32 f47614 = 47614;
+  Sub f47615 = 47615;
+  Sub f47616 = 47616;
+  int32 f47617 = 47617;
+  int32 f47618 = 47618;
+  int32 f47619 = 47619;
+  int32 f47620 = 47620;
+  int32 f47622 = 47622;
+}
+
+message ReplyExtension {
+  Sub f48210 = 48210;
+  int32 f48211 = 48211;
+  int32 f48212 = 48212;
+  int32 f48213 = 48213;
+  string f48214 = 48214;
+  int32 f48215 = 48215;
+  int32 f48216 = 48216;
+  repeated Sub f48217 = 48217;
+  Sub f48218 = 48218;
+  string f48271 = 48271;
+  int32 f48272 = 48272;
+  int32 f48273 = 48273;
+  int32 f48275 = 48275;
+}
+
+message MsgTimestamp2 {
+  int64 timestamp = 50202;
+  int32 f50205 = 50205;
+}
+
+message MsgContent {
+  Sub f5 = 5;
+  int32 f40010 = 40010;
+  string sender_uid = 40020;
+  int64 msg_id = 45001;
+  int32 content_type = 45002;
+  int32 media_sub = 45003;
+  Sub f45004 = 45004;
+  string text = 45101;
+  int64 text_attr = 45102;
+  int32 f45103 = 45103;
+  int32 f45104 = 45104;
+  string f45105 = 45105;
+  int32 f45106 = 45106;
+  int32 f45108 = 45108;
+  int32 f45109 = 45109;
+  Sub f45110 = 45110;
+  int32 f45111 = 45111;
+  MsgTimestamp f45112 = 45112;
+  string filename = 45402;
+  string filepath = 45403;
+  string f45404 = 45404;
+  int64 filesize = 45405;
+  bytes md5_raw = 45406;
+  bytes f45407 = 45407;
+  bytes thumbnail = 45408;
+  bytes f45409 = 45409;
+  int32 f45410 = 45410;
+  int32 img_width = 45411;
+  int32 img_height = 45412;
+  int32 f45413 = 45413;
+  int32 f45414 = 45414;
+  int32 f45415 = 45415;
+  int32 f45416 = 45416;
+  int32 f45418 = 45418;
+  string file_ext = 45419;
+  bytes f45421 = 45421;
+  string f45422 = 45422;
+  int32 f45423 = 45423;
+  bytes f45424 = 45424;
+  int32 f45501 = 45501;
+  string cdn_token = 45503;
+  bytes cdn_path = 45504;
+  int64 expire_ts = 45505;
+  int32 f45507 = 45507;
+  int32 f45509 = 45509;
+  bytes f45510 = 45510;
+  int32 f45511 = 45511;
+  int32 f45512 = 45512;
+  int32 f45513 = 45513;
+  int32 f45514 = 45514;
+  int64 short_ttl_ts = 45515;
+  int32 short_ttl_dur = 45516;
+  int64 upload_ts = 45517;
+  int32 long_ttl_dur = 45518;
+  int64 long_ttl_ts = 45519;
+  MediaRef media_ref = 45526;
+  int32 f45550 = 45550;
+  bytes sticker = 45600;
+  Sub f45801 = 45801;
+  string cdn_url_1 = 45802;
+  string cdn_url_2 = 45803;
+  string cdn_url_3 = 45804;
+  int32 f45805 = 45805;
+  int32 f45806 = 45806;
+  int32 f45807 = 45807;
+  string local_path = 45812;
+  string ntos_path = 45814;
+  repeated bytes text_fallback = 45815;
+  string cdn_host = 45816;
+  int32 f45817 = 45817;
+  Sub f45818 = 45818;
+  Sub f45819 = 45819;
+  Sub f45820 = 45820;
+  int32 f45821 = 45821;
+  int32 f45822 = 45822;
+  int32 f45823 = 45823;
+  Sub f45824 = 45824;
+  int32 f45825 = 45825;
+  int32 f45826 = 45826;
+  int32 f45827 = 45827;
+  Sub f45828 = 45828;
+  int32 f45829 = 45829;
+  int32 loc_type = 45851;
+  int32 loc_f45852 = 45852;
+  int32 loc_f45853 = 45853;
+  int32 loc_f45854 = 45854;
+  int32 loc_f45855 = 45855;
+  LocationExtra loc_extra = 45856;
+  bytes loc_f45862 = 45862;
+  int32 loc_f45863 = 45863;
+  repeated int32 nc_category = 45906;
+  repeated int32 nc_f45907 = 45907;
+  int32 nc_f45909 = 45909;
+  int32 nc_f45911 = 45911;
+  int32 nc_f45922 = 45922;
+  string nc_text = 45923;
+  int32 nc_f45924 = 45924;
+  bytes nc_avatar = 45925;
+  int32 nc_f45926 = 45926;
+  string f45954 = 45954;
+  Sub f45974 = 45974;
+  int32 ref_type = 47501;
+  Sub ref_f47502 = 47502;
+  int32 nc_relation = 47702;
+  string nc_uid_1 = 47703;
+  string nc_uid_2 = 47704;
+  string nc_nickname_1 = 47705;
+  string nc_remark_1 = 47706;
+  MsgContent ref_msg = 47710;
+  int32 ref_f47711 = 47711;
+  string ref_f47713 = 47713;
+  string nc_nickname_2 = 47714;
+  string nc_remark_2 = 47715;
+  int32 video_flag = 47601;
+  string video_text = 47602;
+  string video_width = 47603;
+  string video_height = 47604;
+  int32 f47605 = 47605;
+  int32 f47606 = 47606;
+  string f47607 = 47607;
+  Sub f47608 = 47608;
+  int32 f47609 = 47609;
+  int32 f47610 = 47610;
+  int32 f47611 = 47611;
+  Sub f47612 = 47612;
+  int32 f47613 = 47613;
+  int32 f47614 = 47614;
+  Sub f47615 = 47615;
+  Sub f47616 = 47616;
+  int32 f47617 = 47617;
+  int32 f47618 = 47618;
+  int32 f47619 = 47619;
+  int32 f47620 = 47620;
+  int32 f47622 = 47622;
+  string fwd_meta = 47901;
+  string fwd_token = 47902;
+  string fwd_uuid = 47904;
+  int32 call_type = 48151;
+  int32 call_duration = 48152;
+  string call_desc = 48153;
+  int32 call_f48154 = 48154;
+  int32 call_f48155 = 48155;
+  int32 call_f48156 = 48156;
+  string call_f48157 = 48157;
+  ReplyExtension reply_extension = 48210;
+  repeated Sub reply_items = 48217;
+  Sub reply_f48218 = 48218;
+  string reply_f48271 = 48271;
+  int32 reply_f48272 = 48272;
+  int32 reply_f48273 = 48273;
+  int32 reply_f48275 = 48275;
+  string legacy_fwd_resid = 48601;
+  string legacy_fwd_xml = 48602;
+  string legacy_fwd_uuid = 48603;
+  string ext_proto_ver = 49154;
+  int64 ext_timestamp = 49155;
+  int32 sys_f80810 = 80810;
+  string sys_f80824 = 80824;
+  string sys_content = 80900;
+  int32 sys_f80901 = 80901;
+  int32 sys_f80902 = 80902;
+  bytes sys_f80903 = 80903;
+  int32 sys_f80905 = 80905;
+  int32 sys_f80908 = 80908;
+  int32 sys_f80909 = 80909;
+  int32 sys_f80910 = 80910;
+  int32 sys_f80935 = 80935;
+  string sys_f80941 = 80941;
+  string sys_f80942 = 80942;
+  repeated Sub sys_f80970 = 80970;
+  int32 sys_f80975 = 80975;
+  int32 sys_f80980 = 80980;
+  int32 sys_f80981 = 80981;
+  Sub sys_f80983 = 80983;
+  int32 sys_f80995 = 80995;
+}
