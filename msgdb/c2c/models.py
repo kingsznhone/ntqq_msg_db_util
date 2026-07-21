@@ -70,7 +70,7 @@ class FileContent:
     filesize: int
     md5_hex: str
     ext: str  # 45419
-    cdn_token: str | None = None  # 45503
+    file_uuid: str | None = None  # 45503
     cdn_path: str | None = None  # 45504
 
 

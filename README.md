@@ -1,22 +1,55 @@
-# 灵魂提取器 NTQQ 聊天数据库解密与转换工具
+# 灵魂提取器：NTQQ 聊天数据库解密、研究与转换工具
 
-一张通往赛博永生的车票
+一张通往赛博永生的车票。
 
 
 ## 背景
 
 NTQQ（QQ NT 架构）将聊天记录存储在 SQLCipher 4 加密的 SQLite 数据库中（通常命名为 `nt_msg.db`）。文件开头有一段 **1024 字节的自定义头部**，其后才是标准的 SQLCipher 数据库内容。在解密之前必须先剥掉这段头部。
 
-此Repo的所有工作建立在Windows平台上，将个人使用了十八年QQ的完整数据库作为研究对象
+本项目目前以 Windows 为主要运行和研究平台，使用个人长期 QQ 聊天数据库作为样本
 
-密钥为 16 字节 ASCII 字符串，可通过内存调试等方式从 NTQQ 进程中提取。建议使用 PowerShell 脚本提取密钥，2026年5月14日亲测有效
+密钥为 16 字节 ASCII 字符串，可通过内存调试等方式从 NTQQ 进程中提取。建议使用 PowerShell 脚本提取密钥，2026 年 7 月 21 日验证有效。
 
-https://qqbackup.github.io/QQDecrypt/decrypt/description.html
+https://qqbackup.github.io/QQDecrypt/
+
+## 当前状态
+
+| 部分 | 状态 | 当前说明 |
+|------|------|---------|
+| 解密 | 可用 | 支持剥离 1024 字节头部、SQLCipher 4 参数验证、逐表导出和损坏页跳过 |
+| 精简库 | 可用 | 新建 SQLCipher 库并跳过 `group_msg_table` 数据，再拼接原始头部 |
+| 结构化导出 | 可用 | 将 C2C 与 group 主消息表导出为 SQLite，并建立索引和 FTS5 |
+| `40800` 解析 | 已接入 | C2C/group 共用 `MsgBody -> repeated MsgContent`；支持强类型解析和 wire fallback |
+| 其他 Protobuf | 已建模，待进一步接入 | `40600`、`40605`、`40801`、`40900` 已有独立 schema/parser，当前 `3.export.py` 尚未将它们导出到结构化目标表 |
+| 字段研究 | 持续进行 | 已完成大量主表字段、消息体字段和 group 专用字段的样本验证，仍有一批字段只有行为级结论 |
 
 ## 字段分析文档
 
-- 字段总览：[db_docs/c2c_msg_table/summary.md](db_docs/c2c_msg_table/summary.md)
-- 字段文档组目录：[db_docs/c2c_msg_table/](db_docs/c2c_msg_table/)
+- C2C 字段总览：[db_docs/c2c_msg_table/summary.md](db_docs/c2c_msg_table/summary.md)
+- group 字段总览：[db_docs/group_msg_table/summary.md](db_docs/group_msg_table/summary.md)
+- C2C 字段报告目录：[db_docs/c2c_msg_table/](db_docs/c2c_msg_table/)
+- group 字段报告目录：[db_docs/group_msg_table/](db_docs/group_msg_table/)
+
+### 研究基线与进度
+
+当前文档基于以下数据库快照：
+
+- `c2c_msg_table`：`1,318,588` 行，已有 `23` 个独立字段报告；
+- `group_msg_table`：`540,018` 行，已有 `28` 个独立字段报告；
+- 两张表的 `40800` 均已确认使用共享的 `MsgBody.content` repeated Protobuf 结构；
+- C2C `40800`：非 NULL 数据约 `99.96%`，已区分单段、多段消息及少量旧 wire 形态；
+- group `40800`：非 NULL 数据强类型解析成功率为 `100%`，最多观察到 `121` 个消息段；
+- 外部资料中出现的 `48000` 已通过全量 wire 扫描排除，当前 canonical 编号为 `40800`。
+
+文档中的置信度含义为：✅ 已验证，🔍 当前样本支持的解释，❓ 仅确认结构或样本不足，未知表示尚无可靠语义。研究结论优先描述可复现的数据行为，不强行套用未经样本验证的产品内部命名。
+
+### 研究重点
+
+- 主表字段：消息 ID、方向、发送者、会话对象、时间、消息类型和 group 会话分区等；
+- `40800`：文本、图片、视频、文件、表情、引用、合并转发、系统通知和通话等消息内容；
+- group 专用字段：`40600`、`40605`、`40801`、`40900` 的结构已逆向建模，业务语义仍按各字段报告中的置信度使用；
+- 未知字段：保留字段号、wire 类型和原始 bytes，避免把多态或新版本字段误判为固定类型。
 
 ---
 
@@ -34,7 +67,7 @@ https://qqbackup.github.io/QQDecrypt/decrypt/description.html
 
 ## 脚本一：`1.decrypt.py` — 解密并导出明文数据库
 
-### 思路
+### 当前实现
 
 1. **剥离头部**：跳过 `nt_msg.db` 前 1024 字节，输出 `nt_msg_clear.db`（已存在则跳过）。
 2. **验证密钥**：用 `sqlcipher3` 以正确的 PRAGMA 顺序打开加密库，确认密钥可用。
@@ -72,11 +105,11 @@ uv add sqlcipher3   # 首次运行前安装依赖
 uv run python 1.decrypt.py
 ```
 
-### 后果
+### 结果与限制
 
 - 生成 `nt_msg_clear.db`（中间产物，可删）
 - 生成 `nt_msg_plain.db`：**完整明文 SQLite**，无需密钥即可直接用 DB Browser、DBeaver 等工具打开
-- 已损坏的页会被自动跳过，丢失极少量行（实测 814 万行中跳过 34 条）
+- 已损坏的页会被自动跳过，损坏行会计入终端统计；输出库支持断点续跑，但不能恢复被跳过的损坏数据
 
 ---
 
@@ -86,7 +119,7 @@ uv run python 1.decrypt.py
 
 `group_msg_table` 储存群聊消息，数据量可达数 GB，且在旧备份中极易出现页损坏（无法直接 `DELETE`），在消息管理器中删除所有群聊消息也不会缩小nt_msg.db的大小。该脚本绕开损坏，生成一个去掉群消息但保留全部其他数据的精简版数据库，仍以 SQLCipher 格式封装（方便回传给 NTQQ 使用）。
 
-### 思路
+### 当前实现
 
 1. 打开 `nt_msg_clear.db`（只读，不修改）。
 2. **新建**一个空的 SQLCipher 库（`_slim_work.db`，相同密钥和参数）。
@@ -116,11 +149,12 @@ SKIP_TABLE = "group_msg_table"  # 只建空表的表名
 uv run python 2.slim.py
 ```
 
-### 后果
+### 结果与限制
 
 - 生成 `nt_msg_slim.db`：SQLCipher 格式，带原始 1024 字节头，`group_msg_table` 为空，其余数据完整
 - **`group_msg_table` 的所有消息将不存在于输出文件中**，无法恢复（源库 `nt_msg_clear.db` 不受影响）
 - 文件体积比原始 `nt_msg.db` 大幅缩小
+- 该脚本只处理数据库层复制；不会把已在源库中损坏或无法读取的内容恢复出来
 
 ---
 
@@ -130,10 +164,10 @@ uv run python 2.slim.py
 
 `nt_msg_plain.db` 中的消息内容（`c2c_msg_table.40800` 和 `group_msg_table.40800` 列）以 Protobuf 编码存储，且夹杂大量未知字段。该脚本解析 Protobuf，提取关键字段，输出一个结构清晰、可直接查询的 SQLite 数据库 `nt_msg_export.db`。
 
-### 思路
+### 当前实现
 
 1. **只读**打开 `nt_msg_plain.db`，分别按 `40001`（消息 ID）顺序扫描 `c2c_msg_table` 和 `group_msg_table`。
-2. 用 `msgdb/proto/c2c_40800_pb2.py` 解析两张表共用的 `40800` Protobuf blob。
+2. 用 `msgdb/proto/c2c_40800_parser.py` 解析两张表共用的 `40800` Protobuf blob；该入口在强类型解析失败时保留 wire 字段。
 3. C2C 消息写入 `c2c_messages`，群消息写入 `group_messages`；群消息保留 `group_id/group_qq`、`subtype` 和 `parse_status`，并将共享 `MsgContent` 完整 JSON 写入 `content`。
 4. 批量写入（默认 2000 行/事务），写入期间暂停两张表的 FTS5 触发器，全部完成后一次性重建索引。
 
@@ -153,7 +187,7 @@ uv run python 2.slim.py
 | `proto_ver` | `49154` | NT 协议版本标识（`"1"` / `"nt_1"`） |
 | `inner_ts` | `49155` | 消息内层时间戳（Unix 秒） |
 | `text` | `45101` | 所有文本段合并后的纯文本（FTS 全文搜索来源） |
-| `content` | `40800` 解析 | JSON，含 `type` 鉴别字段，结构按消息类型而异 |
+| `content` | `40800` 解析 | JSON，含 `type` 鉴别字段，结构按消息类型而异；无法强类型解析时 C2C 保留为空 |
 
 `content` JSON 示例：
 
@@ -183,7 +217,7 @@ uv run python 2.slim.py
 | `content_type` | `40800` → `45002` | 首段内容类型 |
 | `text` | `40800` → `45101` | 合并后的文本，供全文搜索 |
 | `parse_status` | `40800` 解析 | `null` / `typed` / `wire_fallback` |
-| `content` | `40800` 解析 | 完整 `MsgContent` JSON；未知结构则保留 wire 字段 |
+| `content` | `40800` 解析 | 完整 `MsgContent` JSON；未知结构保留字段号、wire 类型和原始值 |
 
 群聊全文索引为 `group_messages_fts`，其外部内容行号使用 `group_messages.msg_id`；C2C 全文索引为 `c2c_messages_fts`。
 
@@ -195,11 +229,23 @@ uv run python 3.export.py --src nt_msg_plain.db --dst nt_msg_export.db --batch 5
 uv run python 3.export.py --debug                  # 显示逐行解析错误详情
 ```
 
-### 后果
+### 结果与限制
 
 - 生成 `nt_msg_export.db`：标准 SQLite，无需密钥，可直接用 DB Browser 等工具打开
 - 自动建立时间、会话、消息类型索引及 FTS5 全文搜索虚拟表（`c2c_messages_fts`、`group_messages_fts`）
-- 实测：C2C 与 group 共约 188 万行；Protobuf 解析失败会保留为 `null` 或 `wire_fallback`，单行转换异常会单独计入错误计数并跳过，不会中断整个导出
+- C2C 与 group 共约 `1,858,606` 行（按当前研究快照）；
+- group 的 `parse_status` 为 `null`、`typed`、`wire_fallback` 或 `invalid`，未知 wire 字段不会静默丢弃；
+- C2C 当前结构化模型只写入成功解析的 `40800` 内容，解析失败时保留表级元数据，`content`、`text` 等内容字段为空；
+- `3.export.py` 当前只导出两张主消息表及 `40800` 内容，尚未把 `40600`、`40605`、`40801`、`40900` 等附加列写入结构化目标库；
+- 单行转换异常会单独计入错误计数并跳过，不会中断整个导出。
+
+### 解析代码入口
+
+- 表级适配：`msgdb/c2c/`、`msgdb/group/`；
+- 共享消息体：`msgdb/proto/c2c_40800.proto` 与 `msgdb/proto/c2c_40800_parser.py`；
+- group 附加结构：`msgdb/proto/group_40600_parser.py`、`group_40605_parser.py`、`group_40801_parser.py`、`group_40900_parser.py`；
+- 未知字段保留：`msgdb/proto/wire.py`；
+- 协议和解析说明：[msgdb/proto/README.md](msgdb/proto/README.md)。
 
 ---
 
@@ -207,7 +253,7 @@ uv run python 3.export.py --debug                  # 显示逐行解析错误详
 
 ### 前置要求
 
-- **Python 3.14**（推荐；`pyproject.toml` 中声明 `requires-python = ">=3.14"`）
+- **Python 3.14**（当前项目要求；`pyproject.toml` 中声明 `requires-python = ">=3.14"`）
 - **[uv](https://docs.astral.sh/uv/)**：现代 Python 包管理器，安装方式：
   ```powershell
   # Windows (PowerShell)
@@ -237,4 +283,11 @@ uv sync
 | `python-dotenv` | 从 `.env` 文件读取配置（可选） |
 | `bbpb` | Protobuf 辅助工具 |
 
-`3.export.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite。
+`3.export.py` 不依赖 `sqlcipher3`，直接操作明文 SQLite；完整安装仍建议执行 `uv sync`，因为项目依赖按统一环境声明。
+
+## 使用边界
+
+- 本项目面向本人拥有或获授权处理的数据库，仅用于数据恢复、格式转换和协议研究；
+- 密钥、数据库文件、QQ 号、NT UID、昵称和聊天内容均属于敏感数据，请勿提交到公开仓库；
+- 运行 `2.slim.py` 前请确认已备份原始库；输出库会永久移除 `group_msg_table` 中的消息；
+- 字段报告中的统计数字对应研究快照，换用其他 NTQQ 版本或数据库后应重新验证，不应直接依赖未标记为已验证的语义。

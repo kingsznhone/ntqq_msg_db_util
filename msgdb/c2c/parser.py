@@ -118,7 +118,7 @@ def _parse_file(c: schema_pb2.MsgContent) -> FileContent:
         filesize=c.filesize,
         md5_hex=_hex(c.md5_raw),
         ext=c.file_ext or "",
-        cdn_token=c.cdn_token or None,
+        file_uuid=c.file_uuid or None,
         cdn_path=_text_value(c.cdn_path),
     )
 

@@ -33,7 +33,7 @@ wheels = [
 ]
 
 [[package]]
-name = "msgdb"
+name = "nt-msg-db-util"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

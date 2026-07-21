@@ -96,6 +96,7 @@ message MsgContent {
   int32 content_type = 45002;
   int32 media_sub = 45003;
   Sub f45004 = 45004;
+  // 外部资料候选：某些表情消息中可能携带 msgid + faceType；当前样本主要为空 sub-message。
   string text = 45101;
   int64 text_attr = 45102;
   int32 f45103 = 45103;
@@ -128,8 +129,9 @@ message MsgContent {
   string f45422 = 45422;
   int32 f45423 = 45423;
   bytes f45424 = 45424;
+  // 视频预览封面文件名/路径；group 40011=7 样本中表现为 .png 文件名。
   int32 f45501 = 45501;
-  string cdn_token = 45503;
+  string file_uuid = 45503;
   bytes cdn_path = 45504;
   int64 expire_ts = 45505;
   int32 f45507 = 45507;
@@ -177,7 +179,7 @@ message MsgContent {
   int32 loc_f45854 = 45854;
   int32 loc_f45855 = 45855;
   LocationExtra loc_extra = 45856;
-  bytes loc_f45862 = 45862;
+  bytes video_thumb_md5 = 45862;
   int32 loc_f45863 = 45863;
   repeated int32 nc_category = 45906;
   repeated int32 nc_f45907 = 45907;
@@ -189,9 +191,18 @@ message MsgContent {
   bytes nc_avatar = 45925;
   int32 nc_f45926 = 45926;
   string f45954 = 45954;
+  // 文件消息预览封面路径；group 40011=3 样本中表现为 NTOSFull 路径。
   Sub f45974 = 45974;
   int32 ref_type = 47501;
   Sub ref_f47502 = 47502;
+  // 外部资料候选：引用目标的主表消息 ID、序号和发送时间；当前尚未完成逐字段验证。
+  int64 reply_msg_id = 47401;
+  int64 reply_msg_seq = 47402;
+  int64 reply_msg_time = 47403;
+  int64 reply_msg_time_alt = 47404;
+  string reply_summary = 47413;
+  string reply_group_nickname = 47421;
+  int64 reply_source_record_id = 47422;
   int32 nc_relation = 47702;
   string nc_uid_1 = 47703;
   string nc_uid_2 = 47704;
@@ -245,6 +256,8 @@ message MsgContent {
   string legacy_fwd_uuid = 48603;
   string ext_proto_ver = 49154;
   int64 ext_timestamp = 49155;
+  // 文件元素的预览封面大小（字节）；当前数据未发现样本。
+  int64 file_thumb_size = 95654;
   int32 sys_f80810 = 80810;
   string sys_f80824 = 80824;
   string sys_content = 80900;

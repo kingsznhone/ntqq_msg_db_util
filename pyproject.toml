@@ -1,5 +1,5 @@
 [project]
-name = "msgdb"
+name = "nt_msg_db_util"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
