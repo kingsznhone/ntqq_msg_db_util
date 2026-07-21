@@ -50,9 +50,7 @@ def _content(result) -> str | None:
                 "wire_type": item.wire_type,
                 "raw_value_hex": item.raw_value.hex(),
                 "value": (
-                    item.value.hex()
-                    if isinstance(item.value, bytes)
-                    else item.value
+                    item.value.hex() if isinstance(item.value, bytes) else item.value
                 ),
             }
             for item in result.wire_fields

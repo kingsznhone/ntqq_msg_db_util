@@ -35,5 +35,12 @@ def parse_40801(blob: bytes | None) -> Parsed40801:
         try:
             fields = tuple(parse_wire(blob))
         except ValueError as wire_exc:
-            return Parsed40801(ParseStatus.INVALID, error=f"protobuf={type(exc).__name__}; wire={wire_exc}")
-        return Parsed40801(ParseStatus.WIRE_FALLBACK, wire_fields=fields, error=f"protobuf={type(exc).__name__}")
+            return Parsed40801(
+                ParseStatus.INVALID,
+                error=f"protobuf={type(exc).__name__}; wire={wire_exc}",
+            )
+        return Parsed40801(
+            ParseStatus.WIRE_FALLBACK,
+            wire_fields=fields,
+            error=f"protobuf={type(exc).__name__}",
+        )

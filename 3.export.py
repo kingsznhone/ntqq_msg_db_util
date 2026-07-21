@@ -89,7 +89,9 @@ def export_database(src_path: str, dst_path: str, batch_size: int) -> None:
         for raw in src.execute(select_sql):
             try:
                 value = parser(raw)
-                target_batch.append(value.to_db_row() if hasattr(value, "to_db_row") else value)
+                target_batch.append(
+                    value.to_db_row() if hasattr(value, "to_db_row") else value
+                )
             except Exception as exc:
                 errors += 1
                 log.debug("msg_id=%s 转换失败: %s", raw["msg_id"], exc)

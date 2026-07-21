@@ -7,4 +7,11 @@ from .group_40605_parser import parse_40605
 from .group_40801_parser import parse_40801
 from .group_40900_parser import parse_40900
 
-__all__ = ["msg_40800", "parse_40600", "parse_40605", "parse_40800", "parse_40801", "parse_40900"]
+__all__ = [
+    "msg_40800",
+    "parse_40600",
+    "parse_40605",
+    "parse_40800",
+    "parse_40801",
+    "parse_40900",
+]

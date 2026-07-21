@@ -52,7 +52,9 @@ def parse_wire(data: bytes) -> list[WireField]:
             end = offset + 8
             if end > len(data):
                 raise ValueError(f"truncated fixed64 at offset {offset}")
-            fields.append(WireField(number, wire_type, data[offset:end], data[offset:end]))
+            fields.append(
+                WireField(number, wire_type, data[offset:end], data[offset:end])
+            )
             offset = end
         elif wire_type == 2:
             item = read_varint(data, offset)
@@ -62,14 +64,20 @@ def parse_wire(data: bytes) -> list[WireField]:
             end = offset + length
             if end > len(data):
                 raise ValueError(f"truncated length-delimited field at offset {offset}")
-            fields.append(WireField(number, wire_type, data[offset:end], data[offset:end]))
+            fields.append(
+                WireField(number, wire_type, data[offset:end], data[offset:end])
+            )
             offset = end
         elif wire_type == 5:
             end = offset + 4
             if end > len(data):
                 raise ValueError(f"truncated fixed32 at offset {offset}")
-            fields.append(WireField(number, wire_type, data[offset:end], data[offset:end]))
+            fields.append(
+                WireField(number, wire_type, data[offset:end], data[offset:end])
+            )
             offset = end
         else:
-            raise ValueError(f"unsupported wire type {wire_type} at offset {value_start}")
+            raise ValueError(
+                f"unsupported wire type {wire_type} at offset {value_start}"
+            )
     return fields

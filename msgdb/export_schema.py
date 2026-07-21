@@ -69,12 +69,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS group_messages_fts USING fts5(
 
 DDL_FTS_TRIGGERS = {
     "c2c_messages": (
-    """CREATE TRIGGER IF NOT EXISTS c2c_fts_ai AFTER INSERT ON c2c_messages BEGIN
+        """CREATE TRIGGER IF NOT EXISTS c2c_fts_ai AFTER INSERT ON c2c_messages BEGIN
 INSERT INTO c2c_messages_fts(rowid, text) VALUES (new.msg_id, new.text); END;""",
-    """CREATE TRIGGER IF NOT EXISTS c2c_fts_ad AFTER DELETE ON c2c_messages BEGIN
+        """CREATE TRIGGER IF NOT EXISTS c2c_fts_ad AFTER DELETE ON c2c_messages BEGIN
 INSERT INTO c2c_messages_fts(c2c_messages_fts, rowid, text)
 VALUES ('delete', old.msg_id, old.text); END;""",
-    """CREATE TRIGGER IF NOT EXISTS c2c_fts_au AFTER UPDATE ON c2c_messages BEGIN
+        """CREATE TRIGGER IF NOT EXISTS c2c_fts_au AFTER UPDATE ON c2c_messages BEGIN
 INSERT INTO c2c_messages_fts(c2c_messages_fts, rowid, text)
 VALUES ('delete', old.msg_id, old.text);
 INSERT INTO c2c_messages_fts(rowid, text) VALUES (new.msg_id, new.text); END;""",
@@ -127,8 +127,12 @@ def drop_fts_triggers(conn: sqlite3.Connection) -> None:
     """批量写入前移除两张表的 FTS 触发器。"""
     with conn:
         for name in (
-            "c2c_fts_ai", "c2c_fts_ad", "c2c_fts_au",
-            "group_fts_ai", "group_fts_ad", "group_fts_au",
+            "c2c_fts_ai",
+            "c2c_fts_ad",
+            "c2c_fts_au",
+            "group_fts_ai",
+            "group_fts_ad",
+            "group_fts_au",
         ):
             conn.execute(f"DROP TRIGGER IF EXISTS {name}")
 
@@ -136,8 +140,12 @@ def drop_fts_triggers(conn: sqlite3.Connection) -> None:
 def rebuild_fts(conn: sqlite3.Connection) -> None:
     """批量写入结束后重建两张表的 FTS 索引。"""
     with conn:
-        conn.execute("INSERT INTO c2c_messages_fts(c2c_messages_fts) VALUES ('rebuild');")
-        conn.execute("INSERT INTO group_messages_fts(group_messages_fts) VALUES ('rebuild');")
+        conn.execute(
+            "INSERT INTO c2c_messages_fts(c2c_messages_fts) VALUES ('rebuild');"
+        )
+        conn.execute(
+            "INSERT INTO group_messages_fts(group_messages_fts) VALUES ('rebuild');"
+        )
 
 
 def insert_messages_batch(conn: sqlite3.Connection, rows: list[dict]) -> None:
