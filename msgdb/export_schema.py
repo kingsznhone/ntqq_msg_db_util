@@ -44,7 +44,8 @@ DDL_C2C_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_c2c_msg_peer ON c2c_messages(peer_uid, timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_c2c_msg_peer_qq ON c2c_messages(peer_qq, timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_c2c_msg_type ON c2c_messages(msg_type, content_type);",
-    "CREATE INDEX IF NOT EXISTS idx_c2c_msg_id ON c2c_messages(msg_id);",
+    # 去除冗余的与主键重复的索引，主键定义见DDL_C2C_MESSAGES与DDL_GROUP_MESSAGES
+    # "CREATE INDEX IF NOT EXISTS idx_c2c_msg_id ON c2c_messages(msg_id);",
 )
 
 DDL_GROUP_INDEXES = (
@@ -53,7 +54,8 @@ DDL_GROUP_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_group_group_qq ON group_messages(group_qq, timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_group_sender ON group_messages(sender_qq, timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_group_type ON group_messages(msg_type, content_type);",
-    "CREATE INDEX IF NOT EXISTS idx_group_msg_id ON group_messages(msg_id);",
+    # 同上，去除冗余的与主键重复的索引
+    # "CREATE INDEX IF NOT EXISTS idx_group_msg_id ON group_messages(msg_id);",
 )
 
 DDL_FTS = {
@@ -110,12 +112,13 @@ VALUES
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """创建 C2C 与 group 两张导出主表及其索引/FTS。"""
+    """创建 C2C 与 group 两张导出主表及其FTS。"""
     with conn:
         conn.execute(DDL_C2C_MESSAGES)
         conn.execute(DDL_GROUP_MESSAGES)
-        for ddl in (*DDL_C2C_INDEXES, *DDL_GROUP_INDEXES):
-            conn.execute(ddl)
+        # 初始化数据库时不建立二级索引
+        # for ddl in (*DDL_C2C_INDEXES, *DDL_GROUP_INDEXES):
+        #     conn.execute(ddl)
         for ddl in DDL_FTS.values():
             conn.execute(ddl)
         for triggers in DDL_FTS_TRIGGERS.values():
@@ -154,3 +157,11 @@ def insert_messages_batch(conn: sqlite3.Connection, rows: list[dict]) -> None:
 
 def insert_group_messages_batch(conn: sqlite3.Connection, rows: list[dict]) -> None:
     conn.executemany(_INSERT_GROUP_SQL, rows)
+
+
+def create_indexes(conn: sqlite3.Connection) -> None:
+    # 独立的创建二级索引方法，将在3.export.py中批量写入完成后被调用
+    # 先写后建，避免插入时维护索引
+    with conn:
+        for ddl in (*DDL_C2C_INDEXES, *DDL_GROUP_INDEXES):
+            conn.execute(ddl)
