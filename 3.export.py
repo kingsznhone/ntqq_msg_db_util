@@ -27,6 +27,7 @@ from msgdb.export_schema import (
     insert_group_messages_batch,
     insert_messages_batch,
     rebuild_fts,
+    create_indexes,
 )
 from msgdb.group import exporter as group_exporter
 
@@ -123,6 +124,10 @@ def export_database(src_path: str, dst_path: str, batch_size: int) -> None:
     log.info(
         "主表写入完成：%d 行，错误 %d 行，耗时 %.1f 秒", processed, errors, elapsed
     )
+
+    log.info("建立二级索引…")
+    create_indexes(dst)
+    log.info("索引建立完成，总耗时 %.1f 秒", time.monotonic() - t0)
 
     log.info("重建 FTS 索引（c2c_messages_fts、group_messages_fts）…")
     rebuild_fts(dst)
